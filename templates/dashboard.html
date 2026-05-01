@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+    <h2>Dashboard</h2>
+
+    <a href="/create_project">Create Project</a><br><br>
+    <a href="/create_task">Create Task</a><br><br>
+    <h3>Stats:</h3>
+    <p>Total Tasks: {{ total }}</p>
+    <p>Completed: {{ completed }}</p>
+    <p>Pending: {{ pending }}</p>
+
+    <h3>Tasks:</h3>
+    {% for task in tasks %}
+        <p>
+            {{ task.title }} - {{ task.status }}
+            <a href="/update_task/{{ task.id }}">Update</a>
+        </p>
+    {% endfor %}
+</body>
+</html>

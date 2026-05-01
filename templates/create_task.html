@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Task</title>
+</head>
+<body>
+    <h2>Create Task</h2>
+
+    <form method="POST">
+        <input type="text" name="title" placeholder="Task title" required><br><br>
+
+        <label>Assign to:</label>
+        <select name="user_id">
+            {% for user in users %}
+                <option value="{{ user.id }}">{{ user.username }}</option>
+            {% endfor %}
+        </select><br><br>
+
+        <button type="submit">Create Task</button>
+    </form>
+</body>
+</html>
+
