@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect,session
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
+app.secret_key = "anything123"
 # Database setup
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 db = SQLAlchemy(app)
@@ -24,6 +25,7 @@ class Task(db.Model):
     title = db.Column(db.String(100))
     status = db.Column(db.String(50), default='Pending')
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
 
 # Home route
 @app.route('/')
@@ -55,25 +57,49 @@ def login():
         user = User.query.filter_by(username=username, password=password).first()
 
         if user:
-            return "Login Successful 🎉"
+            session['user_id'] = user.id
+            return redirect('/dashboard')
         else:
-            return "Invalid Credentials ❌"
-
+            return "Invalid credentials "
     return render_template('login.html')
 
 
-@app.route('/dashboard')
+@app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    tasks = Task.query.all()
-    total = len(tasks)
+
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    if request.method == 'POST':
+        task_name = request.form.get('task')
+
+        if task_name:
+            new_task = Task(
+                title=task_name,
+                status='Pending',
+                user_id=session['user_id']
+            )
+
+            db.session.add(new_task)
+            db.session.commit()
+
+        return redirect('/dashboard')
+
+    tasks = Task.query.filter_by(user_id=session['user_id']).all()
+
+    total_tasks = len(tasks)
     completed = len([t for t in tasks if t.status == 'Done'])
     pending = len([t for t in tasks if t.status == 'Pending'])
 
-    return render_template('dashboard.html',
-                           tasks=tasks,
-                           total=total,
-                           completed=completed,
-                           pending=pending)
+    return render_template(
+        'dashboard.html',
+        tasks=tasks,
+        total_tasks=total_tasks,
+        completed=completed,
+        pending=pending
+    )
+
+    
 
 @app.route('/create_project', methods=['GET', 'POST'])
 def create_project():
@@ -110,6 +136,13 @@ def update_task(id):
     else:
         task.status = 'Pending'
 
+    db.session.commit()
+    return redirect('/dashboard')
+
+@app.route('/delete_task/<int:id>')
+def delete_task(id):
+    task = Task.query.get(id)
+    db.session.delete(task)
     db.session.commit()
     return redirect('/dashboard')
 
