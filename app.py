@@ -30,7 +30,7 @@ class Task(db.Model):
 # Home route
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('home.html')
 
 # Signup route
 @app.route('/signup', methods=['GET', 'POST'])
@@ -147,6 +147,4 @@ def delete_task(id):
     return redirect('/dashboard')
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()  # creates database
-    app.run(debug=True)
+    app.run(host="0.0.0.0",port=10000)
