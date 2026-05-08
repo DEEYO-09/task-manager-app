@@ -1,43 +1,44 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.secret_key = "secret123"
 
-# Database setup
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 db = SQLAlchemy(app)
 
-# User table
+# ---------------- MODELS ---------------- #
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100))
     password = db.Column(db.String(100))
+    role = db.Column(db.String(20))   # hr / employee
 
-# Project table
-class Project(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100))
 
-# Task table
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100))
     status = db.Column(db.String(50), default='Pending')
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
-# Home route
+
+# ---------------- ROUTES ---------------- #
+
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('home.html')
 
-# Signup route
+
+# -------- SIGNUP -------- #
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
+        role = request.form.get('role')
 
-        new_user = User(username=username, password=password)
+        new_user = User(username=username, password=password, role=role)
         db.session.add(new_user)
         db.session.commit()
 
@@ -45,75 +46,98 @@ def signup():
 
     return render_template('signup.html')
 
-# Login route
+
+# -------- LOGIN -------- #
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
 
         user = User.query.filter_by(username=username, password=password).first()
 
         if user:
-            return "Login Successful 🎉"
+            session['user_id'] = user.id
+            session['role'] = user.role
+
+            if user.role == 'hr':
+                return redirect('/hr_dashboard')
+            else:
+                return redirect('/dashboard')
+
         else:
             return "Invalid Credentials ❌"
 
     return render_template('login.html')
 
 
+# -------- EMPLOYEE DASHBOARD -------- #
 @app.route('/dashboard')
 def dashboard():
-    tasks = Task.query.all()
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    tasks = Task.query.filter_by(user_id=session['user_id']).all()
+
     total = len(tasks)
     completed = len([t for t in tasks if t.status == 'Done'])
     pending = len([t for t in tasks if t.status == 'Pending'])
 
-    return render_template('dashboard.html',
-                           tasks=tasks,
-                           total=total,
-                           completed=completed,
-                           pending=pending)
+    return render_template(
+        'dashboard.html',
+        tasks=tasks,
+        total=total,
+        completed=completed,
+        pending=pending,
+        role=session['role']
+    )
 
-@app.route('/create_project', methods=['GET', 'POST'])
-def create_project():
-    if request.method == 'POST':
-        name = request.form['name']
-        project = Project(name=name)
-        db.session.add(project)
-        db.session.commit()
-        return redirect('/dashboard')
 
-    return render_template('create_project.html')
+# -------- HR DASHBOARD -------- #
+@app.route('/hr_dashboard', methods=['GET', 'POST'])
+def hr_dashboard():
+    if 'user_id' not in session or session['role'] != 'hr':
+        return redirect('/login')
 
-@app.route('/create_task', methods=['GET', 'POST'])
-def create_task():
-    users = User.query.all()
+    users = User.query.filter_by(role='employee').all()
 
     if request.method == 'POST':
-        title = request.form['title']
-        user_id = request.form['user_id']
+        title = request.form.get('title')
+        user_id = request.form.get('user_id')
 
-        task = Task(title=title, user_id=user_id)
-        db.session.add(task)
+        new_task = Task(title=title, user_id=user_id, status='Pending')
+        db.session.add(new_task)
         db.session.commit()
 
-        return redirect('/dashboard')
+    tasks = db.session.query(Task, User).join(User, Task.user_id == User.id).all()
 
-    return render_template('create_task.html', users=users)
+    return render_template('hr_dashboard.html', users=users, tasks=tasks)
 
+
+# -------- UPDATE TASK -------- #
 @app.route('/update_task/<int:id>')
 def update_task(id):
     task = Task.query.get(id)
-    if task.status == 'Pending':
-        task.status = 'Done'
-    else:
-        task.status = 'Pending'
 
-    db.session.commit()
+    if task:
+        if task.status == 'Pending':
+            task.status = 'Done'
+        else:
+            task.status = 'Pending'
+
+        db.session.commit()
+
     return redirect('/dashboard')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+# ---------------- RUN ---------------- #
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()  # creates database
+        db.create_all()
+
     app.run(debug=True)
