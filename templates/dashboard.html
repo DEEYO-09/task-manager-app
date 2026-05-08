@@ -71,17 +71,65 @@
 
         <h4 class="mb-3">Assigned Tasks</h4>
 
+        <select id="taskFilter"
+                class="form-control mb-3"
+                onchange="window.location.href='/dashboard?status=' + this.value">
+
+            <option value="all" {% if selected_filter == 'all' %}selected{% endif %}>
+                All Tasks
+            </option>
+
+            <option value="Pending" {% if selected_filter == 'Pending' %}selected{% endif %}>
+                Pending
+            </option>
+
+            <option value="Done" {% if selected_filter == 'Done' %}selected{% endif %}>
+                Done
+            </option>
+
+            <option value="Overdue" {% if selected_filter == 'Overdue' %}selected{% endif %}>
+                Overdue
+            </option>
+
+        </select>
+
         <ul class="list-group">
 
             {% for task in tasks %}
 
-            <li class="list-group-item d-flex justify-content-between align-items-center">
+            <li class="list-group-item task-item d-flex justify-content-between align-items-center"
+                data-status="{{ task.status }}">
 
                 <!-- TASK TITLE -->
                 <div>
 
-                    {{ task.title }}
+                    <b>{{ task.title }}</b>
 
+                    <br>
+
+                    Priority:
+                    {% if task.priority == 'High' %}
+                    <span class="badge bg-danger">
+                        High
+                    </span>
+
+                    {% elif task.priority == 'Medium' %}
+                    <span class="badge bg-warning text-dark">
+                        Medium
+                    </span>
+
+                    {% else %}
+                    <span class="badge bg-success">
+                        Low
+                    </span>
+
+                    {% endif %}
+                    <br><br>
+
+                    Deadline:
+                    <span class="badge bg-dark">
+                        {{ task.deadline }}
+                    </span>
                 </div>
 
                 <!-- STATUS + UPDATE BUTTON -->
@@ -92,6 +140,12 @@
                         <span class="badge bg-success me-2">
                             Done
                         </span>
+
+                    {% elif task.status == 'Overdue' %}
+
+                    <span class="badge bg-danger me-2">
+                        Overdue
+                    </span>
 
                     {% else %}
 
