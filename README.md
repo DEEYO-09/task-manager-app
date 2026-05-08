@@ -1,27 +1,22 @@
-# Task Manager Web Application
+# Task Manager Application
+
+A Flask-based Task Management System with Role-Based Access Control.
 
 ## Features
-- User Login & Signup
-- Add Tasks
-- Update Task Status (Pending / Done)
-- Dashboard with task statistics
-- Flask + SQLite backend
+- User Signup/Login
+- HR and Employee Roles
+- Task Assignment
+- Task Status Update
+- Responsive UI using Bootstrap
+- SQLite Database Integration
 
-## Tech Stack
-- Python Flask
+## Technologies Used
+- Python
+- Flask
 - SQLite
-- HTML, CSS, Bootstrap
+- SQLAlchemy
+- Bootstrap
+- HTML/CSS
 
-## How to Run
-1. Install requirements:
-   pip install -r requirements.txt
-
-2. Run app:
-   python app.py
-
-3. Open browser:
-   http://127.0.0.1:10000
-
-4. Live Link :
-   https://task-manager-app-1-rmsd.onrender.com
-   
+## Deployment
+Hosted using Render.
