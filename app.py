@@ -1,34 +1,23 @@
 import os
-print("TEMPLATE FOLDER:", os.path.abspath("templates"))
-
 from flask import Flask, render_template, request, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
-# ---------------- HELPER FUNCTION ---------------- #
-
-def update_overdue_tasks():
-    today = datetime.today().strftime('%Y-%m-%d')
-
-    tasks = Task.query.all()
-
-    for task in tasks:
-        if task.deadline < today and task.status != 'Done':
-            task.status = 'Overdue'
-
-    db.session.commit()
-
+# ---------------- APP SETUP ---------------- #
 app = Flask(__name__)
-
 app.secret_key = "anything123"
 
-# Database setup
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+# ---------------- DATABASE CONFIG ---------------- #
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+app.config['SQLALCHEMY_DATABASE_URI'] = \
+    'sqlite:///' + os.path.join(basedir, 'users.db')
+
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
 # ---------------- MODELS ---------------- #
-
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100))
@@ -45,15 +34,31 @@ class Task(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
 
-# ---------------- ROUTES ---------------- #
+# ---------------- SAFE DB INIT ---------------- #
+with app.app_context():
+    db.create_all()
 
+
+# ---------------- HELPER FUNCTION ---------------- #
+def update_overdue_tasks():
+    today = datetime.today().strftime('%Y-%m-%d')
+
+    tasks = Task.query.all()
+
+    for task in tasks:
+        if task.deadline < today and task.status != 'Done':
+            task.status = 'Overdue'
+
+    db.session.commit()
+
+
+# ---------------- ROUTES ---------------- #
 @app.route('/')
 def home():
     return render_template('home.html')
 
 
 # -------- SIGNUP -------- #
-
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
 
@@ -78,7 +83,6 @@ def signup():
 
 
 # -------- LOGIN -------- #
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
 
@@ -97,29 +101,27 @@ def login():
             session['user_id'] = user.id
             session['role'] = user.role
 
-            # HR LOGIN
             if user.role == 'hr':
                 return redirect('/hr_dashboard')
-
-            # EMPLOYEE LOGIN
             else:
                 return redirect('/dashboard')
 
-        else:
-            return "Invalid credentials"
+        return "Invalid credentials"
 
     return render_template('login.html')
 
 
 # -------- EMPLOYEE DASHBOARD -------- #
-
 @app.route('/dashboard')
 def dashboard():
 
     if 'user_id' not in session:
         return redirect('/login')
 
-    update_overdue_tasks()
+    try:
+        update_overdue_tasks()
+    except:
+        pass
 
     filter_status = request.args.get('status', 'all')
 
@@ -132,9 +134,13 @@ def dashboard():
 
     total = Task.query.filter_by(user_id=session['user_id']).count()
 
-    completed = Task.query.filter_by(user_id=session['user_id'], status='Done').count()
+    completed = Task.query.filter_by(
+        user_id=session['user_id'], status='Done'
+    ).count()
 
-    pending = Task.query.filter_by(user_id=session['user_id'], status='Pending').count()
+    pending = Task.query.filter_by(
+        user_id=session['user_id'], status='Pending'
+    ).count()
 
     return render_template(
         'dashboard.html',
@@ -146,8 +152,8 @@ def dashboard():
         selected_filter=filter_status
     )
 
-# -------- HR DASHBOARD -------- #
 
+# -------- HR DASHBOARD -------- #
 @app.route('/hr_dashboard', methods=['GET', 'POST'])
 def hr_dashboard():
 
@@ -156,7 +162,7 @@ def hr_dashboard():
 
     users = User.query.filter_by(role='employee').all()
 
-    # ---------------- ASSIGN TASK ---------------- #
+    # ---- ASSIGN TASK ---- #
     if request.method == 'POST':
 
         title = request.form.get('title')
@@ -181,26 +187,30 @@ def hr_dashboard():
         db.session.add(new_task)
         db.session.commit()
 
-    # ---------------- FILTER LOGIC ---------------- #
+    # ---- FILTER ---- #
     status_filter = request.args.get('status', 'all')
 
-    query = db.session.query(Task, User).join(User, Task.user_id == User.id)
+    query = db.session.query(Task, User).join(
+        User, Task.user_id == User.id
+    )
 
     if status_filter != 'all':
         query = query.filter(Task.status == status_filter)
 
     tasks = query.all()
 
-    # ---------------- STATS ---------------- #
+    # ---- STATS ---- #
     employee_stats = []
 
     employees = User.query.filter_by(role='employee').all()
 
-    for employee in employees:
+    for emp in employees:
 
-        total = Task.query.filter_by(user_id=employee.id).count()
+        total = Task.query.filter_by(user_id=emp.id).count()
 
-        completed = Task.query.filter_by(user_id=employee.id, status='Done').count()
+        completed = Task.query.filter_by(
+            user_id=emp.id, status='Done'
+        ).count()
 
         percentage = int((completed / total) * 100) if total > 0 else 0
 
@@ -212,82 +222,60 @@ def hr_dashboard():
             performance = "Needs Improvement"
 
         employee_stats.append({
-            'name': employee.username,
+            'name': emp.username,
             'percentage': percentage,
             'performance': performance
         })
 
-    # ---------------- ANALYTICS ---------------- #
-    total_employees = User.query.filter_by(role='employee').count()
-    total_tasks = Task.query.count()
-    completed_tasks = Task.query.filter_by(status='Done').count()
-    pending_tasks = Task.query.filter_by(status='Pending').count()
-    overdue_tasks = Task.query.filter_by(status='Overdue').count()
-
+    # ---- ANALYTICS ---- #
     return render_template(
         'hr_dashboard.html',
         users=users,
         tasks=tasks,
-        total_employees=total_employees,
-        total_tasks=total_tasks,
-        completed_tasks=completed_tasks,
-        pending_tasks=pending_tasks,
-        overdue_tasks=overdue_tasks,
+        total_employees=User.query.filter_by(role='employee').count(),
+        total_tasks=Task.query.count(),
+        completed_tasks=Task.query.filter_by(status='Done').count(),
+        pending_tasks=Task.query.filter_by(status='Pending').count(),
+        overdue_tasks=Task.query.filter_by(status='Overdue').count(),
         employee_stats=employee_stats,
         selected=status_filter
     )
 
-# -------- UPDATE TASK -------- #
 
+# -------- UPDATE TASK -------- #
 @app.route('/update_task/<int:id>')
 def update_task(id):
 
     task = Task.query.get(id)
 
     if task:
-
-        if task.status == 'Pending':
-            task.status = 'Done'
-
-        else:
-            task.status = 'Pending'
-
+        task.status = 'Done' if task.status == 'Pending' else 'Pending'
         db.session.commit()
 
     return redirect('/dashboard')
 
 
 # -------- DELETE TASK -------- #
-
 @app.route('/delete_task/<int:id>')
 def delete_task(id):
 
     task = Task.query.get(id)
 
-    db.session.delete(task)
-    db.session.commit()
+    if task:
+        db.session.delete(task)
+        db.session.commit()
 
     return redirect('/hr_dashboard')
 
 
 # -------- LOGOUT -------- #
-
 @app.route('/logout')
 def logout():
-
     session.clear()
-
     return redirect('/login')
 
 
-# -------- RUN APP -------- #
-def init_db():
-    with app.app_context():
-        db.create_all()
-
+# -------- RUN -------- #
 if __name__ == "__main__":
-
-    init_db()
-
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
