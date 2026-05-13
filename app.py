@@ -156,26 +156,19 @@ def dashboard():
 # -------- HR DASHBOARD -------- #
 @app.route('/hr_dashboard', methods=['GET', 'POST'])
 def hr_dashboard():
-
     if 'user_id' not in session or session['role'] != 'hr':
         return redirect('/login')
-
     users = User.query.filter_by(role='employee').all()
 
-    # ---- ASSIGN TASK ---- #
     if request.method == 'POST':
-
         title = request.form.get('title')
         deadline = request.form.get('deadline')
         user_id = request.form.get('user_id')
-
         priority = "Low"
-
         if "urgent" in title.lower() or "critical" in title.lower():
             priority = "High"
         elif "meeting" in title.lower() or "presentation" in title.lower():
             priority = "Medium"
-
         new_task = Task(
             title=title,
             user_id=user_id,
@@ -183,51 +176,34 @@ def hr_dashboard():
             priority=priority,
             deadline=deadline
         )
-
         db.session.add(new_task)
         db.session.commit()
-
-    # ---- FILTER ---- #
     status_filter = request.args.get('status', 'all')
-
     query = db.session.query(Task, User).join(
         User, Task.user_id == User.id
     )
-
     if status_filter != 'all':
         query = query.filter(Task.status == status_filter)
-
     tasks = query.all()
-
-    # ---- STATS ---- #
     employee_stats = []
-
     employees = User.query.filter_by(role='employee').all()
-
     for emp in employees:
-
         total = Task.query.filter_by(user_id=emp.id).count()
-
         completed = Task.query.filter_by(
             user_id=emp.id, status='Done'
         ).count()
-
         percentage = int((completed / total) * 100) if total > 0 else 0
-
         if percentage >= 80:
             performance = "Excellent"
         elif percentage >= 50:
             performance = "Good"
         else:
             performance = "Needs Improvement"
-
         employee_stats.append({
             'name': emp.username,
             'percentage': percentage,
             'performance': performance
         })
-
-    # ---- ANALYTICS ---- #
     return render_template(
         'hr_dashboard.html',
         users=users,
